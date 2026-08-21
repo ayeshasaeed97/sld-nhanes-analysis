@@ -268,8 +268,7 @@ baseline_table %>%
 
 
 # exporting table1 data
-
-#write_csv(masld_table1, "clean_data/masld_table1.csv")
+write_csv(masld_table1, "clean_data/masld_table1.csv")
 
 
 

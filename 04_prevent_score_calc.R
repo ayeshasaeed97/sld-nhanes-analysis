@@ -9,7 +9,7 @@ library(preventr)
 library(haven)
 
 # Load Data----
-masld <- read_csv("clean_data/nhanes_masld.csv")
+masld <- read_csv("clean_data/masld_table1.csv")
 
 
 masld2 <- masld %>%
@@ -92,8 +92,51 @@ masld2 <- masld %>%
            )
   )
   
+# 
+
+# female with serum creatinine <= 0.7
+
+female1 <- masld2 %>%
+  filter(HSSEX == 2 & scr_mg_dl <= 0.7) ## 77 observations
+
+egfr1 <- (142*(female1$scr_mg_dl/0.7)^-0.241)*((0.9938)^(female1$HSAGEIR))*1.012
+summary(egfr1)
+
+# female with serum creatinine > 0.7
+female2 <- masld2 %>%
+  filter(HSSEX == 2 & scr_mg_dl > 0.7) ## 6703 observations
+
+egfr2 <- (142 * (female2$scr_mg_dl / 0.7)^-1.200) *((0.9938)^(female2$HSAGEIR))*1.012
+summary(egfr2)
+
+
+# male with serum creatinine <= 0.9
+male1 <- masld2 %>%
+  filter(HSSEX == 1 & scr_mg_dl <= 0.9) ## 84 observations
+
+egfr3 <- (142 * (male1$scr_mg_dl / 0.9)^-0.302) * ((0.9938)^(male1$HSAGEIR))
+summary(egfr3)
+
+# male with serum creatinine > 0.9
+male2 <- masld2 %>%
+  filter(HSSEX == 1 & scr_mg_dl > 0.9) ## 5501
+
+egfr4 <- (142 * (male2$scr_mg_dl / 0.9)^-1.200) * ((0.9938)^(male2$HSAGEIR))
+summary(egfr4)
+
+egfr_wh <- c(egfr1, egfr2, egfr3, egfr4)
+summary(egfr_wh)
+
+
 hist(masld2$egfr)
 summary(masld2$egfr)
+
+sum(masld2$egfr < 15)
+length(masld2$egfr)
+
+length(masld2$egfr2)
+
+plot(masld2$HSAGEIR, masld2$egfr)
 
 # missing was assigned to false
 
@@ -166,10 +209,11 @@ prevent_score_cap <- masld3 %>%
   ungroup()
 
 
-prevent_results <- prevent_score %>%
-  unnest(risk_score)
 
 prevent_results_cap <- prevent_score_cap %>%
   unnest(risk_score)
 
 summary(prevent_results_cap)
+
+write_csv(prevent_results_cap, "clean_data/masld_prevent.csv")
+

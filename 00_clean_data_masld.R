@@ -526,22 +526,22 @@ table(nhanes_masld$LIVER_GROUP2)
 table(nhanes_masld$LIVER_GROUP)
 
 # for ID metALD
-#nhanes_masld <- nhanes_masld %>%
-#  mutate(
-#    DRINKS2 = DRINK*14
-#  ) %>%
-#  mutate(
-#    ALC_INTAKE = factor(
-#      case_when(
-#      DRINKS2 >=50 & HSSEX == 1 ~ "MASLD Pre-dominant",
-#      DRINKS2 >= 50 & HSSEX == 2 ~ "MASLD Pre-dominant",
-#      DRINKS2 > 50 & HSSEX == 2 ~ "ALD Pre-dominant",
-#      DRINKS2 > 60 & HSSEX == 1 ~ "ALD Pre-dominant",
-#      TRUE ~ NA_character_
-#    ),
-#    levels = c("MASLD Pre-dominant", "ALD Pre-dominant")
-#  )
-#  )
+nhanes_masld <- nhanes_masld %>%
+  mutate(
+    DRINKS2 = DRINK*14
+  ) %>%
+  mutate(
+    ALC_INTAKE = factor(
+      case_when(
+      DRINKS2 >=50 & HSSEX == 1 ~ "MASLD Pre-dominant",
+      DRINKS2 >= 50 & HSSEX == 2 ~ "MASLD Pre-dominant",
+      DRINKS2 > 50 & HSSEX == 2 ~ "ALD Pre-dominant",
+      DRINKS2 > 60 & HSSEX == 1 ~ "ALD Pre-dominant",
+      TRUE ~ NA_character_
+    ),
+    levels = c("MASLD Pre-dominant", "ALD Pre-dominant")
+  )
+  )
 
 
 
@@ -562,6 +562,37 @@ ggplot(
   geom_bar() +
   geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
   labs(x = "Number of MASLD Criteria", y = "Count") 
+
+
+nhanes_masld2 <- nhanes_masld %>%
+  filter(LIVER_GROUP2 == "Neither")
+
+
+ggplot(
+  data = nhanes_masld2, aes(x = factor(MASLD_CRITERIA_COUNT))) +
+  geom_bar() +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
+  labs(x = "Number of MASLD Criteria", y = "Count") 
+
+# 1582, ref group, no HS diagnosis, no CMRF
+# 0-1 is ref group, 2, 3, 4, 5
+# additional analysis 0-2 reference, and 3+
+# ckm classification
+
+table(nhanes_masld$LIVER_GROUP2, nhanes_masld$MASLD_CRITERIA_COUNT)
+
+nhanes_masld <- nhanes_masld %>%
+  mutate(
+    LIVER_GROUP3 = factor(
+      case_when(
+        LIVER_GROUP2 == "MASLD" | 
+          LIVER_GROUP2 == "MASH" ~ "MASLD",
+        LIVER_GROUP2 == "Neither" ~ "None",
+        TRUE ~ NA_character_
+      ),
+      levels = c("None", "MASLD")
+    )
+  )
 
 criterion_summary <- nhanes_masld %>%
   summarise(
@@ -632,6 +663,74 @@ nhanes_masld <- nhanes_masld %>%
   left_join(HBP_TREAT, by = "SEQN") %>%
   left_join(meds_clean, by = "SEQN")
 
+
+
+# eGFR calculations ------------------------------------
+
+# egfr correction
+nhanes_masld <- nhanes_masld %>%
+  mutate(
+    CEP = CEPSI/88.4,
+    creatinine = 0.960*CEP - 0.184
+  ) %>%
+  mutate(sex = tolower(trimws(SEX)),
+         
+         statin = trimws(STATIN_MED),
+         
+         statin = if_else(statin=="True", TRUE, FALSE, missing = FALSE),
+         
+         bp_tx = if_else(HBP_MED=="TRUE", TRUE, FALSE, missing = FALSE),
+         
+         # Cap age to the range 30–79
+         age2 = pmin(pmax(HSAGEIR, 30), 79),
+         
+         # Cap BMI to the range 18.5–39.9
+         bmi2 = pmin(pmax(BMPBMI, 18.5), 39.9),
+         
+         # Cap systolic blood pressure to the range 90–180
+         sbp2 = pmin(pmax(PEPMNK1R, 90), 180),
+         
+         # Cap total cholesterol to the range 3.36–8.28 mmol/L
+         total_c2 = pmin(pmax(TCPSI, 3.36), 8.28),
+         
+         # Cap hdl cholesterol to range 0.5202.59 mmol/L
+         hdl_c2 = pmin(pmax(HDPSI, 2.59), 0.52),
+         
+         
+         # eGFR equations
+         egfr = case_when(
+           
+           # Female, SCr <= 0.7
+           sex == "f" & creatinine <= 0.7 ~
+             142 *
+             (creatinine / 0.7)^(-0.241) *
+             (0.9938^HSAGEIR) *
+             1.012,
+           
+           # Female, SCr > 0.7
+           sex == "f" & creatinine > 0.7 ~
+             142 *
+             (creatinine / 0.7)^(-1.200) *
+             (0.9938^HSAGEIR) *
+             1.012,
+           
+           # Male, SCr <= 0.9
+           sex == "m" & creatinine <= 0.9 ~
+             142 *
+             (creatinine / 0.9)^(-0.302) *
+             (0.9938^HSAGEIR),
+           
+           # Male, SCr > 0.9
+           sex == "m" & creatinine > 0.9 ~
+             142 *
+             (creatinine / 0.9)^(-1.200) *
+             (0.9938^HSAGEIR),
+           
+           # Missing/invalid combinations
+           TRUE ~ NA_real_
+         )
+  )
+summary(nhanes_masld$egfr)
 
 
 # Export the modified dataset ----------------------------------------------
